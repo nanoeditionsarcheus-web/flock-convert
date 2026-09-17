@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mise en forme pour FLOCK</title>
+<style>
+:root{
+  --ink:#10212E; --paper:#F2F5F7; --card:#FFFFFF; --rule:#D3DCE2; --muted:#5C6F7C;
+  --fam:#1F5FC4; --vic:#12894F; --ned:#B8860B; --pet:#B4283C;
+  --serif:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
+  --sans:system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:Consolas,"SF Mono",Menlo,"DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box} html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;padding:32px 20px 80px}
+.wrap{max-width:940px;margin:0 auto}
+header{border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:26px}
+h1{font-family:var(--serif);font-size:31px;font-weight:400;letter-spacing:-.01em;margin:0 0 4px}
+.sub{color:var(--muted);font-size:14px;margin:0}
+section{background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:20px 22px;margin-bottom:18px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;display:flex;align-items:baseline;gap:9px}
+.eyebrow b{color:var(--fam);font-weight:600}
+h2{font-family:var(--serif);font-size:19px;font-weight:400;margin:0 0 10px}
+p.note{color:var(--muted);font-size:13.5px;margin:8px 0 0}
+textarea{width:100%;font-family:var(--mono);font-size:12.5px;line-height:1.5;border:1px solid var(--rule);border-radius:3px;padding:10px;resize:vertical;background:#FBFCFD;color:var(--ink)}
+#data{height:150px} #out{height:180px;white-space:pre}
+textarea:focus,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--fam);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:12px}
+button{font-family:var(--sans);font-size:14px;font-weight:600;background:var(--ink);color:#fff;border:0;border-radius:3px;padding:9px 18px;cursor:pointer}
+button:hover{background:#1D3D53}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule);font-weight:500}
+button.ghost:hover{background:#EDF1F4}
+input[type=file]{font-size:13px}
+.field{display:flex;align-items:center;gap:9px;font-size:14px}
+.field input[type=number]{width:60px;font-family:var(--mono);font-size:14px;padding:5px 7px;border:1px solid var(--rule);border-radius:3px}
+.field input[type=text]{width:88px;font-family:var(--mono);font-size:14px;padding:5px 7px;border:1px solid var(--rule);border-radius:3px}
+select{font-family:var(--sans);font-size:14px;padding:6px 8px;border:1px solid var(--rule);border-radius:3px;background:#fff}
+label.opt{display:flex;gap:9px;align-items:flex-start;font-size:14px;cursor:pointer;margin-top:4px}
+label.opt input{margin-top:3px;flex:none}
+.stats{display:flex;flex-wrap:wrap;gap:26px;margin:0 0 4px;padding:0;list-style:none}
+.stats li{min-width:92px}
+.stats .n{font-family:var(--serif);font-size:26px;line-height:1.1;display:block}
+.stats .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.flag{border-left:3px solid var(--ned);background:#FDF8EC;padding:11px 14px;margin-top:14px;font-size:13.5px;border-radius:0 3px 3px 0}
+.flag.err{border-left-color:var(--pet);background:#FCF0F1}
+.flag b{font-weight:600}
+code{font-family:var(--mono);font-size:12.5px;background:#EDF1F4;padding:1px 4px;border-radius:2px}
+.hidden{display:none}
+.scroll{max-height:280px;overflow:auto;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:600;border-bottom:1px solid var(--ink);padding:0 10px 6px 0}
+td{padding:4px 10px 4px 0;border-bottom:1px solid #EBF0F3;font-family:var(--mono);font-size:12.5px}
+footer{color:var(--muted);font-size:12.5px;margin-top:28px;border-top:1px solid var(--rule);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Mise en forme pour FLOCK</h1>
+  <p class="sub">Transforme une matrice de génotypes en disposition FLOCK — un allèle par colonne, prête à rouler.</p>
+</header>
+
+<section>
+  <p class="eyebrow"><b>1</b> La matrice de départ</p>
+  <h2>Coller la matrice, ou ouvrir un fichier</h2>
+  <textarea id="data" spellcheck="false" placeholder="NO ind&#9;LAV237&#9;LAV321&#9;LAV336&#10;1974&#9;147167&#9;168168&#9;188192&#10;1993&#9;155171187&#9;144168&#9;167187191219"></textarea>
+  <div class="row">
+    <input type="file" id="file" accept=".txt,.csv,.tsv,.dat,text/*">
+    <button class="ghost" type="button" id="demo">Charger un exemple</button>
+    <button class="ghost" type="button" id="clear">Vider</button>
+  </div>
+  <p class="note">La première ligne est l'en-tête : un libellé d'identifiant, puis le nom de chaque locus. Ensuite, une ligne par individu : l'identifiant, puis les génotypes (allèles collés, 3 chiffres chacun — <code>147167</code>, ou <code>155171187</code> pour trois allèles). Copier-coller directement depuis Excel fonctionne.</p>
+</section>
+
+<section>
+  <p class="eyebrow"><b>2</b> Les règles</p>
+  <div class="row" style="margin-top:0">
+    <span class="field">Locus à plus de 2 allèles :
+      <select id="mode">
+        <option value="all">toutes les combinaisons</option>
+        <option value="rand">tirage aléatoire</option>
+      </select>
+    </span>
+    <span class="field" id="nbox">nombre de tirages par individu <input type="number" id="nrand" min="1" value="10"></span>
+  </div>
+  <p class="note" id="modeNote">FLOCK travaille en diploïde (2 allèles par locus). Un locus à 3 ou 4 allèles est donc développé en plusieurs versions à 2 allèles. « Toutes les combinaisons » les énumère exhaustivement (ex. <code>157161169</code> → <code>157161</code>, <code>157169</code>, <code>161169</code>) ; « tirage aléatoire » en prend un nombre fixe au hasard, utile si un individu cumule beaucoup de locus multi-allèles.</p>
+  <div class="row" style="margin-top:14px">
+    <span class="field">Code des données manquantes <input type="text" id="missCode" value="0"></span>
+    <button type="button" id="run" style="margin-left:auto">Mettre en forme</button>
+  </div>
+</section>
+
+<section id="res" class="hidden">
+  <p class="eyebrow"><b>3</b> Le résultat</p>
+  <ul class="stats" id="stats"></ul>
+  <div id="flags"></div>
+
+  <h2 style="margin-top:20px">Matrice FLOCK</h2>
+  <p class="note" style="margin-top:0">Copier-coller cette matrice dans le classeur FLOCK, ou l'enregistrer en CSV. Les allèles sont séparés, les manquants à <code>0</code>.</p>
+  <div class="row" style="margin-top:8px;margin-bottom:8px">
+    <button class="ghost" type="button" id="copy">Copier</button>
+    <button class="ghost" type="button" id="csv">Enregistrer en CSV</button>
+    <span class="note" id="copied" style="margin:0"></span>
+  </div>
+  <textarea id="out" spellcheck="false" readonly></textarea>
+
+  <div id="legendWrap" class="hidden">
+    <h2 style="margin-top:22px">Légende des individus développés</h2>
+    <p class="note" style="margin-top:0">Chaque individu à plus de 2 allèles a été scindé. Voici, pour chaque version, la combinaison retenue — pour interpréter ensuite les sorties de FLOCK.</p>
+    <div class="scroll"><table id="legend"><thead><tr><th>Identifiant</th><th>Combinaison retenue</th></tr></thead><tbody></tbody></table></div>
+  </div>
+</section>
+
+<footer>
+  Reproduit la disposition FLOCK (SPEC ID puis deux colonnes par locus) à partir d'une matrice de génotypes collés, en développant les locus à 3 ou 4 allèles en versions diploïdes. Conçu pour la démarche d'assignation d'espèce de Nathalie Tessier ; méthode de développement inspirée d'une suggestion de Pierre Duchesne.
+  Tout se calcule dans le navigateur : aucune donnée ne quitte l'ordinateur, hors ligne, sur Mac comme sur PC.
+</footer>
+
+</div>
+<script>
+"use strict";
+var $=function(id){return document.getElementById(id);};
+
+var DEMO="NO ind\tLAV237\tLAV321\tLAV336\tLAV347\tLAV211\n"+
+"1974\t147167\t168168\t188192\t169193\t169177\n"+
+"1985\t151187\t168208\t188208\t177197\t161177\n"+
+"1987\t155155\t144168\t188188\t177201\t149173177\n"+
+"1993\t155171187\t144168\t184188\t177201\t149161\n"+
+"2001\t000000\t168168\t188192\t169193\t169177";
+
+// --- découpe d'un génotype en allèles (3 chiffres collés, ou séparés par / - |) ---
+function splitGeno(s){
+  if(/[\/\-|]/.test(s)){
+    var parts=s.split(/[\/\-|]/).filter(function(t){return t.length;});
+    if(parts.length>=2 && parts.every(function(t){return /^\d+$/.test(t);})) return parts;
+    return null;
+  }
+  if(/^\d+$/.test(s) && s.length>=6 && s.length%3===0){
+    var out=[]; for(var i=0;i<s.length;i+=3) out.push(s.slice(i,i+3)); return out;
+  }
+  return null;
+}
+function isMiss(al,missCode){
+  if(missCode && al.join("")===missCode) return true;
+  return al.every(function(a){return /^0+$/.test(a);});
+}
+// toutes les paires non ordonnées d'un tableau d'allèles
+function pairs2(al){
+  if(al.length===2) return [[al[0],al[1]]];
+  var out=[]; for(var i=0;i<al.length;i++) for(var j=i+1;j<al.length;j++) out.push([al[i],al[j]]); return out;
+}
+function intAllele(a){ return String(parseInt(a,10)); }  // 097 -> 97
+function label(n){ // 0->A,1->B,...25->Z,26->AA
+  var s=""; n=n+1;
+  while(n>0){ var r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=Math.floor((n-1)/26); }
+  return s;
+}
+
+var CAP=500; // garde-fou par individu
+
+function parse(text,missCode){
+  var lines=text.split(/\r?\n/).filter(function(l){return l.trim().length;});
+  if(!lines.length) return null;
+  // Séparateur de colonnes : tabulation / point-virgule / virgule en priorité
+  // (un collage Excel en produit toujours), pour ne pas casser un libellé
+  // ou un identifiant contenant une espace, comme « NO ind ». On ne se rabat
+  // sur l'espace que si la ligne n'a aucun de ces séparateurs.
+  function cols(line){
+    if(/[\t;,]/.test(line)) return line.split(/[\t;,]/).map(function(s){return s.trim();}).filter(function(s){return s.length;});
+    return line.split(/\s+/).filter(function(s){return s.length;});
+  }
+  var h=cols(lines[0]);
+  var lociNames=h.slice(1); // tout sauf le libellé d'identifiant
+  var rows=[], badnum=0, ragged=[];
+  var L=lociNames.length;
+  for(var i=1;i<lines.length;i++){
+    var t=cols(lines[i]); if(!t.length) continue;
+    var id=t[0], g=t.slice(1);
+    // valider longueur
+    var ok=[]; var bad=false;
+    for(var k=0;k<g.length;k++){ if(splitGeno(g[k])) ok.push(g[k]); else if(/^\d{4,}$/.test(g[k])) badnum++; }
+    if(ok.length!==L){ ragged.push({line:i+1,id:id,got:ok.length}); }
+    rows.push({id:id,g:ok});
+  }
+  return {lociNames:lociNames,L:L,rows:rows,badnum:badnum,ragged:ragged};
+}
+
+function build(){
+  var txt=$("data").value.trim();
+  if(!txt){ alert("Collez d'abord une matrice, ou ouvrez un fichier."); return; }
+  var missCode=$("missCode").value.trim();
+  var P=parse(txt,missCode);
+  if(!P || P.L<1 || !P.rows.length){ $("res").classList.add("hidden"); alert("Je n'arrive pas à lire une matrice (en-tête + individus). Vérifiez le fichier."); return; }
+  var mode=$("mode").value, N=Math.max(1,+$("nrand").value||10);
+  var L=P.L, names=P.lociNames;
+
+  var outRows=[], legend=[], expanded=0, capped=0, missingCells=0;
+  var multiIndiv=0;
+
+  for(var r=0;r<P.rows.length;r++){
+    var ind=P.rows[r];
+    if(ind.g.length!==L) continue; // lignes irrégulières ignorées (signalées à part)
+    // pour chaque locus : liste d'allèles, ou manquant
+    var perLocus=[], nMulti=0, missFlags=[];
+    for(var k=0;k<L;k++){
+      var al=splitGeno(ind.g[k]);
+      if(isMiss(al,missCode)){ perLocus.push(null); missFlags.push(true); missingCells++; }
+      else { perLocus.push(al); missFlags.push(false); if(al.length>2) nMulti++; }
+    }
+    if(nMulti>0) multiIndiv++;
+
+    // ensembles de paires par locus
+    var comboLists=perLocus.map(function(al){ return al===null ? [["0","0"]] : pairs2(al); });
+    var totalCombos=comboLists.reduce(function(a,l){return a*l.length;},1);
+
+    var chosen=[]; // tableau de {picks:[[a,b],...], note}
+    if(nMulti===0){
+      chosen.push({picks:comboLists.map(function(l){return l[0];}), multi:false});
+    } else if(mode==="all" && totalCombos<=CAP){
+      // produit cartésien
+      var acc=[[]];
+      for(var k2=0;k2<L;k2++){
+        var nxt=[];
+        for(var a=0;a<acc.length;a++) for(var c=0;c<comboLists[k2].length;c++) nxt.push(acc[a].concat([comboLists[k2][c]]));
+        acc=nxt;
+      }
+      acc.forEach(function(p){ chosen.push({picks:p,multi:true}); });
+    } else {
+      // tirage aléatoire (mode rand, ou all trop grand)
+      if(mode==="all" && totalCombos>CAP) capped++;
+      var seen={};
+      var tries=0, want=N;
+      while(chosen.length<want && tries<want*20){
+        tries++;
+        var pk=comboLists.map(function(l){ return l[Math.floor(Math.random()*l.length)]; });
+        var key=pk.map(function(p){return p[0]+"/"+p[1];}).join("|");
+        if(seen[key]) continue; seen[key]=1; chosen.push({picks:pk,multi:true});
+      }
+    }
+
+    var many=chosen.length>1;
+    if(many) expanded++;
+    for(var ci=0;ci<chosen.length;ci++){
+      var sid = many ? ind.id+"_"+label(ci) : String(ind.id);
+      var flat=[];
+      chosen[ci].picks.forEach(function(pr){ flat.push(intAllele(pr[0]), intAllele(pr[1])); });
+      outRows.push([sid].concat(flat));
+      if(many){
+        // légende : locus multi seulement
+        var parts=[];
+        for(var k3=0;k3<L;k3++){
+          if(perLocus[k3]!==null && perLocus[k3].length>2){
+            parts.push(names[k3]+" : "+intAllele(chosen[ci].picks[k3][0])+"/"+intAllele(chosen[ci].picks[k3][1]));
+          }
+        }
+        legend.push([sid, parts.join(" ; ")]);
+      }
+    }
+  }
+
+  // en-tête FLOCK : SPEC ID + nom du locus au-dessus du 1er allèle, 2e colonne vide
+  var header=["SPEC ID"];
+  for(var k4=0;k4<L;k4++){ header.push(names[k4], ""); }
+  var lines=[header.join("\t")].concat(outRows.map(function(r){return r.join("\t");}));
+  $("out").value=lines.join("\n");
+
+  // stats
+  $("stats").innerHTML=
+    st(P.rows.length,"individus lus")+st(L,"locus")+
+    st(outRows.length,"lignes produites")+st(multiIndiv,"indiv. multi-allèles");
+
+  // flags
+  var f="";
+  if(P.badnum) f+=flag("<b>"+P.badnum+"</b> valeur"+(P.badnum>1?"s numériques n'ont":" numérique n'a")+" pas pu être lue"+(P.badnum>1?"s":"")+" comme génotype (largeur non multiple de 3, ou allèle à moins de 3 chiffres). Un allèle inférieur à 100 doit s'écrire avec un zéro devant, ex. <code>097</code>.",true);
+  if(P.ragged.length) f+=flag("<b>"+P.ragged.length+"</b> ligne"+(P.ragged.length>1?"s ont":" a")+" un nombre de génotypes différent de "+L+" et "+(P.ragged.length>1?"ont été ignorées":"a été ignorée")+" (ligne"+(P.ragged.length>1?"s ":" ")+P.ragged.slice(0,10).map(function(x){return x.line;}).join(", ")+(P.ragged.length>10?"…":"")+").",true);
+  if(capped) f+=flag("<b>"+capped+"</b> individu"+(capped>1?"s dépassaient":" dépassait")+" "+CAP+" combinaisons possibles ; pour ceux-là, un tirage aléatoire de "+N+" versions a été fait à la place de l'énumération complète.",true);
+  if(expanded) f+=flag("<b>"+expanded+"</b> individu"+(expanded>1?"s ont été développés":" a été développé")+" en plusieurs versions à 2 allèles (voir la légende ci-dessous). Les autres sont inchangés.",false);
+  $("flags").innerHTML=f;
+
+  // légende
+  if(legend.length){
+    $("legendWrap").classList.remove("hidden");
+    $("legend").tBodies[0].innerHTML=legend.map(function(x){return "<tr><td>"+esc(x[0])+"</td><td>"+esc(x[1])+"</td></tr>";}).join("");
+  } else $("legendWrap").classList.add("hidden");
+
+  $("res").classList.remove("hidden");
+  $("res").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function st(n,k){return "<li><span class='n'>"+n+"</span><span class='k'>"+k+"</span></li>";}
+function flag(h,warn){return '<div class="flag'+(warn?" err":"")+'">'+h+"</div>";}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+
+function syncMode(){ $("nbox").style.display=$("mode").value==="rand"?"":"none"; }
+$("mode").addEventListener("change",syncMode); syncMode();
+$("run").addEventListener("click",build);
+$("demo").addEventListener("click",function(){$("data").value=DEMO;});
+$("clear").addEventListener("click",function(){$("data").value="";$("res").classList.add("hidden");});
+$("file").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){$("data").value=rd.result;build();};rd.readAsText(f);});
+$("copy").addEventListener("click",function(){
+  $("out").select();
+  try{ document.execCommand("copy"); $("copied").textContent="Copié — collez dans FLOCK (Ctrl+V)."; }
+  catch(e){ if(navigator.clipboard) navigator.clipboard.writeText($("out").value).then(function(){$("copied").textContent="Copié.";}); }
+  setTimeout(function(){$("copied").textContent="";},4000);
+});
+$("csv").addEventListener("click",function(){
+  var csv=$("out").value.split("\n").map(function(l){return l.split("\t").map(function(c){return /[",;]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(";");}).join("\r\n");
+  var blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="matrice_flock.csv"; a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+});
+</script>
+</body>
+</html>
