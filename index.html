@@ -63,15 +63,20 @@ footer{color:var(--muted);font-size:12.5px;margin-top:28px;border-top:1px solid 
 </header>
 
 <section>
-  <p class="eyebrow"><b>1</b> La matrice de départ</p>
-  <h2>Coller la matrice, ou ouvrir un fichier</h2>
-  <textarea id="data" spellcheck="false" placeholder="NO ind&#9;LAV237&#9;LAV321&#9;LAV336&#10;1974&#9;147167&#9;168168&#9;188192&#10;1993&#9;155171187&#9;144168&#9;167187191219"></textarea>
+  <p class="eyebrow"><b>1</b> Les données</p>
+  <h2>Les génotypes</h2>
+  <textarea id="data" spellcheck="false" placeholder="offspr1&#9;177175&#9;184188&#9;000000&#9;330318&#10;offspr2&#9;207187&#9;160172&#9;304312&#9;254266"></textarea>
   <div class="row">
     <input type="file" id="file" accept=".txt,.csv,.tsv,.dat,text/*">
     <button class="ghost" type="button" id="demo">Charger un exemple</button>
     <button class="ghost" type="button" id="clear">Vider</button>
   </div>
-  <p class="note">La première ligne est l'en-tête : un libellé d'identifiant, puis le nom de chaque locus. Ensuite, une ligne par individu : l'identifiant, puis les génotypes (allèles collés, 3 chiffres chacun — <code>147167</code>, ou <code>155171187</code> pour trois allèles). Copier-coller directement depuis Excel fonctionne.</p>
+  <p class="note">Une ligne par individu : l'identifiant, puis les génotypes (allèles collés, 3 chiffres chacun — <code>147167</code>, ou <code>155171187</code> pour trois allèles). En format PAPA/PASOS, le fichier des génotypes <b>n'a pas d'en-tête</b> ; s'il en contient un (noms de locus en première ligne, comme une matrice Excel), il est reconnu automatiquement.</p>
+
+  <h2 style="margin-top:18px">Les noms de locus</h2>
+  <textarea id="names" spellcheck="false" style="height:52px" placeholder="L1 L2 L3 L4 L5 L6 L7 L8 L9"></textarea>
+  <div class="row"><input type="file" id="fileNames" accept=".txt,.csv,.tsv,.dat,text/*"></div>
+  <p class="note">En format PAPA/PASOS, les noms de locus sont dans un fichier séparé (ex. <code>names_of_loci.txt</code> : <code>L1 L2 L3…</code>). Collez-les ici ou ouvrez le fichier. Facultatif si les génotypes ont déjà un en-tête ; laissés vides et sans en-tête, les locus seront nommés L1, L2, …</p>
 </section>
 
 <section>
@@ -123,12 +128,12 @@ footer{color:var(--muted);font-size:12.5px;margin-top:28px;border-top:1px solid 
 "use strict";
 var $=function(id){return document.getElementById(id);};
 
-var DEMO="NO ind\tLAV237\tLAV321\tLAV336\tLAV347\tLAV211\n"+
-"1974\t147167\t168168\t188192\t169193\t169177\n"+
-"1985\t151187\t168208\t188208\t177197\t161177\n"+
-"1987\t155155\t144168\t188188\t177201\t149173177\n"+
-"1993\t155171187\t144168\t184188\t177201\t149161\n"+
-"2001\t000000\t168168\t188192\t169193\t169177";
+var DEMO="offspr1\t177175\t184188\t000000\t330318\t334342\t236240\t218226\t129129\t263259\n"+
+"offspr2\t207187\t160172\t304312\t254266\t322314\t236234\t238194\t133129\t171167\n"+
+"offspr3\t197177\t176172\t312316\t330330\t000000\t240268\t186194\t113129\t263167\n"+
+"offspr4\t179197\t192176\t276304\t334302\t346350\t274236\t238214\t137137\t251255\n"+
+"offspr5\t207207\t200176\t316276\t326330\t286342\t224248\t178126\t129129\t251183";
+var DEMO_NAMES="L1 L2 L3 L4 L5 L6 L7 L8 L9";
 
 // --- découpe d'un génotype en allèles (3 chiffres collés, ou séparés par / - |) ---
 function splitGeno(s){
@@ -160,39 +165,45 @@ function label(n){ // 0->A,1->B,...25->Z,26->AA
 
 var CAP=500; // garde-fou par individu
 
-function parse(text,missCode){
+function parse(text,namesText,missCode){
   var lines=text.split(/\r?\n/).filter(function(l){return l.trim().length;});
   if(!lines.length) return null;
-  // Séparateur de colonnes : tabulation / point-virgule / virgule en priorité
-  // (un collage Excel en produit toujours), pour ne pas casser un libellé
-  // ou un identifiant contenant une espace, comme « NO ind ». On ne se rabat
-  // sur l'espace que si la ligne n'a aucun de ces séparateurs.
   function cols(line){
     if(/[\t;,]/.test(line)) return line.split(/[\t;,]/).map(function(s){return s.trim();}).filter(function(s){return s.length;});
     return line.split(/\s+/).filter(function(s){return s.length;});
   }
-  var h=cols(lines[0]);
-  var lociNames=h.slice(1); // tout sauf le libellé d'identifiant
+  // en-tête détecté si le 2e jeton de la 1re ligne n'est pas un génotype
+  var first=cols(lines[0]);
+  var headerRow = first.length>1 && !splitGeno(first[1]);
+  var start = headerRow?1:0;
+  if(start>=lines.length) return null;
+  // noms de locus fournis séparément ?
+  var provided = (namesText&&namesText.trim().length) ? namesText.trim().split(/[\s,;\t]+/).filter(function(x){return x.length;}) : null;
+  var fd=cols(lines[start]);
+  var L = provided ? provided.length : fd.slice(1).filter(function(t){return splitGeno(t);}).length;
+  var names;
+  if(provided) names=provided.slice();
+  else if(headerRow) names=first.slice(1);
+  else { names=[]; for(var q=0;q<L;q++) names.push("L"+(q+1)); }
+  while(names.length<L) names.push("L"+(names.length+1));
+  if(names.length>L) names=names.slice(0,L);
   var rows=[], badnum=0, ragged=[];
-  var L=lociNames.length;
-  for(var i=1;i<lines.length;i++){
+  for(var i=start;i<lines.length;i++){
     var t=cols(lines[i]); if(!t.length) continue;
-    var id=t[0], g=t.slice(1);
-    // valider longueur
-    var ok=[]; var bad=false;
+    var id=t[0], g=t.slice(1), ok=[];
     for(var k=0;k<g.length;k++){ if(splitGeno(g[k])) ok.push(g[k]); else if(/^\d{4,}$/.test(g[k])) badnum++; }
     if(ok.length!==L){ ragged.push({line:i+1,id:id,got:ok.length}); }
     rows.push({id:id,g:ok});
   }
-  return {lociNames:lociNames,L:L,rows:rows,badnum:badnum,ragged:ragged};
+  return {lociNames:names,L:L,rows:rows,badnum:badnum,ragged:ragged,headerRow:headerRow,provided:!!provided};
 }
 
 function build(){
   var txt=$("data").value.trim();
   if(!txt){ alert("Collez d'abord une matrice, ou ouvrez un fichier."); return; }
   var missCode=$("missCode").value.trim();
-  var P=parse(txt,missCode);
-  if(!P || P.L<1 || !P.rows.length){ $("res").classList.add("hidden"); alert("Je n'arrive pas à lire une matrice (en-tête + individus). Vérifiez le fichier."); return; }
+  var P=parse(txt,$("names").value,missCode);
+  if(!P || P.L<1 || !P.rows.length){ $("res").classList.add("hidden"); alert("Je n'arrive pas à lire les génotypes. Vérifiez le fichier."); return; }
   var mode=$("mode").value, N=Math.max(1,+$("nrand").value||10);
   var L=P.L, names=P.lociNames;
 
@@ -295,9 +306,10 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp
 function syncMode(){ $("nbox").style.display=$("mode").value==="rand"?"":"none"; }
 $("mode").addEventListener("change",syncMode); syncMode();
 $("run").addEventListener("click",build);
-$("demo").addEventListener("click",function(){$("data").value=DEMO;});
-$("clear").addEventListener("click",function(){$("data").value="";$("res").classList.add("hidden");});
-$("file").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){$("data").value=rd.result;build();};rd.readAsText(f);});
+$("demo").addEventListener("click",function(){$("data").value=DEMO;$("names").value=DEMO_NAMES;});
+$("clear").addEventListener("click",function(){$("data").value="";$("names").value="";$("res").classList.add("hidden");});
+$("file").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){$("data").value=rd.result;};rd.readAsText(f);});
+$("fileNames").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){$("names").value=String(rd.result).trim();};rd.readAsText(f);});
 $("copy").addEventListener("click",function(){
   $("out").select();
   try{ document.execCommand("copy"); $("copied").textContent="Copié — collez dans FLOCK (Ctrl+V)."; }
