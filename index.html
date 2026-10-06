@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mise en forme pour FLOCK</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --ink:#10212E; --paper:#F2F5F7; --card:#FFFFFF; --rule:#D3DCE2; --muted:#5C6F7C;
@@ -67,11 +68,13 @@ footer{color:var(--muted);font-size:12.5px;margin-top:28px;border-top:1px solid 
   <h2>Les génotypes</h2>
   <textarea id="data" spellcheck="false" placeholder="offspr1&#9;177175&#9;184188&#9;000000&#9;330318&#10;offspr2&#9;207187&#9;160172&#9;304312&#9;254266"></textarea>
   <div class="row">
-    <input type="file" id="file" accept=".txt,.csv,.tsv,.dat,text/*">
+    <input type="file" id="file" accept=".xlsx,.xlsm,.xls,.ods,.txt,.csv,.tsv,.dat,text/*">
+    <span class="field hidden" id="sheetBox">Feuille : <select id="sheet"></select></span>
     <button class="ghost" type="button" id="demo">Charger un exemple</button>
     <button class="ghost" type="button" id="clear">Vider</button>
   </div>
-  <p class="note">Une ligne par individu : l'identifiant, puis les génotypes (allèles collés, 3 chiffres chacun — <code>147167</code>, ou <code>155171187</code> pour trois allèles). En format PAPA/PASOS, le fichier des génotypes <b>n'a pas d'en-tête</b> ; s'il en contient un (noms de locus en première ligne, comme une matrice Excel), il est reconnu automatiquement.</p>
+  <p class="note" id="fileInfo"></p>
+  <p class="note">Collez la matrice, ou ouvrez un fichier : classeur Excel ou OpenDocument (<code>.xlsx</code>, <code>.xls</code>, <code>.ods</code> ; une feuille à la fois, au choix) ou texte (<code>.txt</code>, <code>.csv</code>). Une ligne par individu : l'identifiant, puis les génotypes (allèles collés, 3 chiffres chacun — <code>147167</code>, ou <code>155171187</code> pour trois allèles). En format PAPA/PASOS, le fichier des génotypes <b>n'a pas d'en-tête</b> ; s'il en contient un (noms de locus en première ligne, comme une matrice Excel), il est reconnu automatiquement. Les colonnes qui ne contiennent pas de génotypes (par exemple une colonne « Type ») et les lignes sans identifiant ou sans aucun génotype (par exemple des plages d'allèles sous l'en-tête, ou un intertitre) sont ignorées. Une case vide dans une colonne de génotypes compte comme donnée manquante.</p>
 
   <h2 style="margin-top:18px">Les noms de locus</h2>
   <textarea id="names" spellcheck="false" style="height:52px" placeholder="L1 L2 L3 L4 L5 L6 L7 L8 L9"></textarea>
@@ -120,7 +123,7 @@ footer{color:var(--muted);font-size:12.5px;margin-top:28px;border-top:1px solid 
 
 <footer>
   Reproduit la disposition FLOCK (SPEC ID puis deux colonnes par locus) à partir d'une matrice de génotypes collés, en développant les locus à 3 ou 4 allèles en versions diploïdes. Conçu pour la démarche d'assignation d'espèce de Nathalie Tessier ; méthode de développement inspirée d'une suggestion de Pierre Duchesne.
-  Tout se calcule dans le navigateur : aucune donnée ne quitte l'ordinateur, hors ligne, sur Mac comme sur PC.
+  Tout se calcule dans le navigateur : aucune donnée ne quitte l'ordinateur, sur Mac comme sur PC. La page fonctionne hors ligne, sauf la lecture des classeurs Excel, qui demande une connexion.
 </footer>
 
 </div>
@@ -168,34 +171,59 @@ var CAP=500; // garde-fou par individu
 function parse(text,namesText,missCode){
   var lines=text.split(/\r?\n/).filter(function(l){return l.trim().length;});
   if(!lines.length) return null;
+  // Lignes délimitées (tabulation, point-virgule, virgule) : lecture par position, cases vides comprises,
+  // pour que chaque nom d'en-tête reste au-dessus de sa colonne. Sinon : séparation par les espaces.
   function cols(line){
-    if(/[\t;,]/.test(line)) return line.split(/[\t;,]/).map(function(s){return s.trim();}).filter(function(s){return s.length;});
+    if(/[\t;,]/.test(line)) return line.split(/[\t;,]/).map(function(s){return s.trim();});
     return line.split(/\s+/).filter(function(s){return s.length;});
   }
-  // en-tête détecté si le 2e jeton de la 1re ligne n'est pas un génotype
-  var first=cols(lines[0]);
-  var headerRow = first.length>1 && !splitGeno(first[1]);
+  function manquant(c){ return c==="" || c===missCode || /^0+$/.test(c); }
+  var T=lines.map(cols);
+  // en-tête détecté si le 2e jeton non vide de la 1re ligne n'est pas un génotype
+  var f1=T[0].slice(1).filter(function(c){return c.length;});
+  var headerRow = f1.length>0 && !splitGeno(f1[0]);
   var start = headerRow?1:0;
-  if(start>=lines.length) return null;
+  if(start>=T.length) return null;
+  // colonnes de génotypes : celles où les valeurs non vides des lignes avec identifiant sont surtout des génotypes
+  var data=T.slice(start), ncol=Math.max.apply(null,T.map(function(t){return t.length;})), gcols=[];
+  for(var j=1;j<ncol;j++){
+    var geno=0,autre=0;
+    data.forEach(function(t){ if(!t[0]) return; var c=t[j]||""; if(!c) return; if(splitGeno(c)) geno++; else if(c!==missCode && !/^0+$/.test(c)) autre++; });
+    if(geno>0 && geno>=autre) gcols.push(j);
+  }
   // noms de locus fournis séparément ?
   var provided = (namesText&&namesText.trim().length) ? namesText.trim().split(/[\s,;\t]+/).filter(function(x){return x.length;}) : null;
-  var fd=cols(lines[start]);
-  var L = provided ? provided.length : fd.slice(1).filter(function(t){return splitGeno(t);}).length;
+  var L = gcols.length;
   var names;
   if(provided) names=provided.slice();
-  else if(headerRow) names=first.slice(1);
+  else if(headerRow) names=gcols.map(function(j){return (T[0][j]||"").trim()||("L"+j);});
   else { names=[]; for(var q=0;q<L;q++) names.push("L"+(q+1)); }
   while(names.length<L) names.push("L"+(names.length+1));
   if(names.length>L) names=names.slice(0,L);
-  var rows=[], badnum=0, ragged=[];
-  for(var i=start;i<lines.length;i++){
-    var t=cols(lines[i]); if(!t.length) continue;
-    var id=t[0], g=t.slice(1), ok=[];
-    for(var k=0;k<g.length;k++){ if(splitGeno(g[k])) ok.push(g[k]); else if(/^\d{4,}$/.test(g[k])) badnum++; }
-    if(ok.length!==L){ ragged.push({line:i+1,id:id,got:ok.length}); }
+  // notation dominante : allèles collés (147167) ou séparés (147/167). Une ligne écrite dans l'autre notation
+  // (par exemple une ligne de plages d'allèles « 268-272 » portant une étiquette) est écartée et signalée.
+  function notation(t){var sep=0,col=0;gcols.forEach(function(j){var c=t[j]||"";if(!splitGeno(c)||/^0+$/.test(c))return;if(/[\/\-|]/.test(c))sep++;else col++;});
+    return sep&&!col?"sep":col&&!sep?"col":null;}
+  var nSep=0,nCol=0;data.forEach(function(t){if(!t[0])return;var n=notation(t);if(n==="sep")nSep++;else if(n==="col")nCol++;});
+  var dominante=nCol>=nSep?"col":"sep";
+  var rows=[], badnum=0, ragged=[], sansId=0, vides=0, autreNotation=[];
+  for(var i=start;i<T.length;i++){
+    var t=T[i]; if(!t.length) continue;
+    var id=t[0];
+    if(!id || gcols.every(function(j){return !t[j];})){ sansId++; continue; }   // ex. plages d'allèles sous l'en-tête, intertitres
+    var nt=notation(t);
+    if(nt && nt!==dominante && nSep && nCol){ autreNotation.push(id); continue; }
+    var ok=[], bad=false;
+    gcols.forEach(function(j){
+      var c=t[j]||"";
+      if(splitGeno(c) && !/^0+$/.test(c)) ok.push(c);
+      else if(manquant(c)){ ok.push("000000"); if(c==="") vides++; }
+      else { bad=true; if(/^\d{4,}$/.test(c)) badnum++; }
+    });
+    if(bad){ ragged.push({line:i+1,id:id,got:ok.length}); ok=[]; }
     rows.push({id:id,g:ok});
   }
-  return {lociNames:names,L:L,rows:rows,badnum:badnum,ragged:ragged,headerRow:headerRow,provided:!!provided};
+  return {lociNames:names,L:L,rows:rows,badnum:badnum,ragged:ragged,headerRow:headerRow,provided:!!provided,sansId:sansId,vides:vides,autreNotation:autreNotation};
 }
 
 function build(){
@@ -285,7 +313,12 @@ function build(){
   // flags
   var f="";
   if(P.badnum) f+=flag("<b>"+P.badnum+"</b> valeur"+(P.badnum>1?"s numériques n'ont":" numérique n'a")+" pas pu être lue"+(P.badnum>1?"s":"")+" comme génotype (largeur non multiple de 3, ou allèle à moins de 3 chiffres). Un allèle inférieur à 100 doit s'écrire avec un zéro devant, ex. <code>097</code>.",true);
-  if(P.ragged.length) f+=flag("<b>"+P.ragged.length+"</b> ligne"+(P.ragged.length>1?"s ont":" a")+" un nombre de génotypes différent de "+L+" et "+(P.ragged.length>1?"ont été ignorées":"a été ignorée")+" (ligne"+(P.ragged.length>1?"s ":" ")+P.ragged.slice(0,10).map(function(x){return x.line;}).join(", ")+(P.ragged.length>10?"…":"")+").",true);
+  if(P.ragged.length) f+=flag("<b>"+P.ragged.length+"</b> ligne"+(P.ragged.length>1?"s contiennent":" contient")+" une valeur illisible dans une colonne de génotypes et "+(P.ragged.length>1?"ont été ignorées":"a été ignorée")+" (ligne"+(P.ragged.length>1?"s ":" ")+P.ragged.slice(0,10).map(function(x){return x.line;}).join(", ")+(P.ragged.length>10?"…":"")+").",true);
+  if(P.sansId) f+=flag("<b>"+P.sansId+"</b> ligne"+(P.sansId>1?"s":"")+" sans identifiant ou sans aucun génotype (par exemple des plages d'allèles sous l'en-tête, ou un intertitre) "+(P.sansId>1?"ont été ignorées":"a été ignorée")+".",false);
+  if(P.autreNotation.length) f+=flag("<b>"+P.autreNotation.length+"</b> ligne"+(P.autreNotation.length>1?"s sont écrites":" est écrite")+" dans une autre notation que le reste du fichier (allèles séparés par un tiret, comme des plages d'allèles <code>268-272</code>) et "+(P.autreNotation.length>1?"ont été ignorées":"a été ignorée")+" : "+P.autreNotation.slice(0,10).map(esc).join(", ")+(P.autreNotation.length>10?"…":"")+". Si ce sont de vrais individus, écrivez leurs génotypes comme les autres.",true);
+  if(P.vides) f+=flag("<b>"+P.vides+"</b> case"+(P.vides>1?"s vides ont été traitées":" vide a été traitée")+" comme donnée"+(P.vides>1?"s":"")+" manquante"+(P.vides>1?"s":"")+" (<code>0</code>).",false);
+  if(XL.dates) f+=flag("<b>"+XL.dates+"</b> identifiant"+(XL.dates>1?"s sont":" est")+" en format de date dans le classeur : Excel a peut-être transformé des identifiants en dates (par exemple <code>2015-01-01</code> → <code>1/1/15</code>). Ils sont repris tels qu'Excel les affiche ; vérifiez-les. Pour l'éviter, mettez la colonne en format Texte avant la saisie.",true);
+  if(XL.zeros) f+=flag("<b>"+XL.zeros+"</b> génotype"+(XL.zeros>1?"s numériques avaient":" numérique avait")+" perdu son zéro initial dans le classeur (ex. <code>97167</code>) ; il a été rétabli (<code>097167</code>).",false);
   if(capped) f+=flag("<b>"+capped+"</b> individu"+(capped>1?"s dépassaient":" dépassait")+" "+CAP+" combinaisons possibles ; pour ceux-là, un tirage aléatoire de "+N+" versions a été fait à la place de l'énumération complète.",true);
   if(expanded) f+=flag("<b>"+expanded+"</b> individu"+(expanded>1?"s ont été développés":" a été développé")+" en plusieurs versions à 2 allèles (voir la légende ci-dessous). Les autres sont inchangés.",false);
   $("flags").innerHTML=f;
@@ -306,10 +339,50 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp
 function syncMode(){ $("nbox").style.display=$("mode").value==="rand"?"":"none"; }
 $("mode").addEventListener("change",syncMode); syncMode();
 $("run").addEventListener("click",build);
-$("demo").addEventListener("click",function(){$("data").value=DEMO;$("names").value=DEMO_NAMES;});
-$("clear").addEventListener("click",function(){$("data").value="";$("names").value="";$("res").classList.add("hidden");});
-$("file").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){$("data").value=rd.result;};rd.readAsText(f);});
-$("fileNames").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){$("names").value=String(rd.result).trim();};rd.readAsText(f);});
+$("demo").addEventListener("click",function(){$("file").value="";$("fileNames").value="";oublierFichier();$("data").value=DEMO;$("names").value=DEMO_NAMES;});
+$("clear").addEventListener("click",function(){$("data").value="";$("names").value="";$("file").value="";$("fileNames").value="";oublierFichier();$("res").classList.add("hidden");});
+// --- lecture des fichiers : texte (UTF-8, sinon Windows-1252) ou classeur Excel / OpenDocument ---
+var XL={wb:null,dates:0,zeros:0};
+function lireTexte(f,cb){var rd=new FileReader();rd.onload=function(){var t=String(rd.result);
+  if(t.indexOf("�")<0) return cb(t.replace(/^﻿/,""));
+  var r2=new FileReader();r2.onload=function(){cb(String(r2.result));};r2.readAsText(f,"windows-1252");};rd.readAsText(f);}
+function estClasseur(f){return /\.(xlsx|xlsm|xls|ods)$/i.test(f.name);}
+// Une feuille en texte délimité par des tabulations. Identifiant (1re colonne) : tel qu'Excel l'affiche.
+// Autres colonnes : valeur brute ; un nombre de 5 ou 8 chiffres a perdu un zéro initial (097167 → 97167).
+function feuilleEnTexte(ws){
+  var out=[],dates=0,zeros=0;if(!ws["!ref"])return {txt:"",dates:0,zeros:0};
+  var R=XLSX.utils.decode_range(ws["!ref"]);
+  for(var r=R.s.r;r<=R.e.r;r++){var row=[];
+    for(var c=R.s.c;c<=R.e.c;c++){var cell=ws[XLSX.utils.encode_cell({r:r,c:c})],v="";
+      if(cell&&cell.v!=null){
+        if(c===R.s.c){v=cell.w!=null?String(cell.w):String(cell.v);if(cell.t==="d"||(cell.t==="n"&&cell.z&&XLSX.SSF.is_date(cell.z)))dates++;}
+        else if(cell.t==="n"){v=String(Math.round(cell.v));if(v.length===5||v.length===8){v="0"+v;zeros++;}else if(v==="0")v="000000";}
+        else v=String(cell.w!=null?cell.w:cell.v);}
+      row.push(v.replace(/[\t\r\n]+/g," ").trim());}
+    while(row.length&&row[row.length-1]==="")row.pop();
+    out.push(row.join("\t"));}
+  return {txt:out.join("\n"),dates:dates,zeros:zeros};
+}
+function afficherFeuille(){var n=$("sheet").value,ws=XL.wb.Sheets[n],r=feuilleEnTexte(ws);
+  $("data").value=r.txt;XL.dates=r.dates;XL.zeros=r.zeros;$("res").classList.add("hidden");
+  $("fileInfo").textContent="Feuille « "+n+" » chargée"+(XL.wb.SheetNames.length>1?" ("+XL.wb.SheetNames.length+" feuilles dans le classeur : choisissez-en une autre au besoin)":"")+".";}
+function oublierFichier(){XL.wb=null;XL.dates=0;XL.zeros=0;$("sheetBox").classList.add("hidden");$("fileInfo").textContent="";}
+$("file").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;oublierFichier();
+  if(estClasseur(f)){
+    if(typeof XLSX==="undefined"){alert("La lecture des fichiers Excel n'est pas disponible hors ligne. Ouvrez la page en ligne, ou enregistrez la feuille en .csv ou .txt.");e.target.value="";return;}
+    var rd=new FileReader();rd.onload=function(){
+      try{XL.wb=XLSX.read(new Uint8Array(rd.result),{type:"array",cellNF:true});}
+      catch(err){alert("Je n'arrive pas à lire ce classeur : "+(err&&err.message?err.message:err));e.target.value="";return;}
+      $("sheet").innerHTML=XL.wb.SheetNames.map(function(n){return "<option>"+esc(n)+"</option>";}).join("");
+      $("sheetBox").classList.toggle("hidden",XL.wb.SheetNames.length<2);afficherFeuille();};
+    rd.readAsArrayBuffer(f);
+  } else lireTexte(f,function(t){$("data").value=t;$("fileInfo").textContent="Fichier « "+f.name+" » chargé.";});
+});
+$("sheet").addEventListener("change",afficherFeuille);
+// coller ou modifier les données à la main détache le fichier choisi
+$("data").addEventListener("input",function(){if($("file").value){$("file").value="";oublierFichier();}});
+$("fileNames").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;lireTexte(f,function(t){$("names").value=t.trim();});});
+$("names").addEventListener("input",function(){$("fileNames").value="";});
 $("copy").addEventListener("click",function(){
   $("out").select();
   try{ document.execCommand("copy"); $("copied").textContent="Copié — collez dans FLOCK (Ctrl+V)."; }
