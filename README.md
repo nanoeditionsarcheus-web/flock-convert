@@ -43,6 +43,8 @@ NO ind	LAV237	LAV321	LAV336	LAV347	LAV211
 
 Le séparateur de colonnes — tabulation, point-virgule ou virgule — est détecté automatiquement ; un copier-coller depuis Excel fonctionne directement. Les données manquantes sont codées `0` par défaut, et ce code est modifiable. Chaque allèle doit être scoré sur trois chiffres (un allèle inférieur à 100 s'écrit avec un zéro devant, ex. `097`).
 
+On peut aussi ouvrir directement un classeur Excel ou OpenDocument (`.xlsx`, `.xls`, `.ods`), une feuille à la fois, au choix. Les colonnes sans génotypes (par exemple une colonne « Type ») et les lignes sans identifiant ou sans génotype (plages d'allèles, intertitres) sont ignorées ; une ligne écrite dans une autre notation que le reste du fichier (ex. plages `268-272` portant une étiquette) est écartée et signalée. Une case vide compte comme donnée manquante. L'outil signale aussi les identifiants qu'Excel a transformés en dates, et rétablit le zéro initial qu'Excel retire aux génotypes numériques (`97167` → `097167`). La lecture des classeurs demande une connexion (bibliothèque SheetJS) ; le reste fonctionne hors ligne.
+
 ## Vos données restent chez vous
 
 Tout le calcul se fait dans le navigateur. Aucune donnée n'est envoyée nulle part : la page est servie une fois, puis fonctionne seule. Le code est lisible en entier dans ce dépôt.
