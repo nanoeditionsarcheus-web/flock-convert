@@ -123,6 +123,7 @@ footer{color:var(--muted);font-size:12.5px;margin-top:28px;border-top:1px solid 
 
 <footer>
   Reproduit la disposition FLOCK (SPEC ID puis deux colonnes par locus) à partir d'une matrice de génotypes collés, en développant les locus à 3 ou 4 allèles en versions diploïdes. Conçu pour la démarche d'assignation d'espèce de Nathalie Tessier ; méthode de développement inspirée d'une suggestion de Pierre Duchesne.
+  Outils voisins : <a href="https://nanoeditionsarcheus-web.github.io/guichet/reconstitution-femelle/">Reconstitution d'une femelle</a> · <a href="https://nanoeditionsarcheus-web.github.io/guichet/combinaisons/">Agréger les juvéniles d'une même femelle</a> · <a href="https://nanoeditionsarcheus-web.github.io/guichet/compatibilites/">Tableau des compatibilités</a> · <a href="https://nanoeditionsarcheus-web.github.io/guichet/">Guichet (tous les outils)</a>.<br>
   Tout se calcule dans le navigateur : aucune donnée ne quitte l'ordinateur, sur Mac comme sur PC. La page fonctionne hors ligne, sauf la lecture des classeurs Excel, qui demande une connexion.
 </footer>
 
@@ -317,7 +318,7 @@ function build(){
   if(P.sansId) f+=flag("<b>"+P.sansId+"</b> ligne"+(P.sansId>1?"s":"")+" sans identifiant ou sans aucun génotype (par exemple des plages d'allèles sous l'en-tête, ou un intertitre) "+(P.sansId>1?"ont été ignorées":"a été ignorée")+".",false);
   if(P.autreNotation.length) f+=flag("<b>"+P.autreNotation.length+"</b> ligne"+(P.autreNotation.length>1?"s sont écrites":" est écrite")+" dans une autre notation que le reste du fichier (allèles séparés par un tiret, comme des plages d'allèles <code>268-272</code>) et "+(P.autreNotation.length>1?"ont été ignorées":"a été ignorée")+" : "+P.autreNotation.slice(0,10).map(esc).join(", ")+(P.autreNotation.length>10?"…":"")+". Si ce sont de vrais individus, écrivez leurs génotypes comme les autres.",true);
   if(P.vides) f+=flag("<b>"+P.vides+"</b> case"+(P.vides>1?"s vides ont été traitées":" vide a été traitée")+" comme donnée"+(P.vides>1?"s":"")+" manquante"+(P.vides>1?"s":"")+" (<code>0</code>).",false);
-  if(XL.dates) f+=flag("<b>"+XL.dates+"</b> identifiant"+(XL.dates>1?"s sont":" est")+" en format de date dans le classeur : Excel a peut-être transformé des identifiants en dates (par exemple <code>2015-01-01</code> → <code>1/1/15</code>). Ils sont repris tels qu'Excel les affiche ; vérifiez-les. Pour l'éviter, mettez la colonne en format Texte avant la saisie.",true);
+  if(XL.dates) f+=flag("<b>"+XL.dates+"</b> identifiant"+(XL.dates>1?"s étaient":" était")+" en format de date dans le classeur (Excel transforme souvent des identifiants en dates). "+(XL.dates>1?"Ils ont été rétablis":"Il a été rétabli")+" sous la forme AAAAMMJJ : par exemple <code>6/1/15</code> (1<sup>er</sup> juin 2015) → <code>20150601</code>. Vérifiez qu'elle correspond à vos identifiants. Pour l'éviter, mettez la colonne en format Texte avant la saisie.",true);
   if(XL.zeros) f+=flag("<b>"+XL.zeros+"</b> génotype"+(XL.zeros>1?"s numériques avaient":" numérique avait")+" perdu son zéro initial dans le classeur (ex. <code>97167</code>) ; il a été rétabli (<code>097167</code>).",false);
   if(capped) f+=flag("<b>"+capped+"</b> individu"+(capped>1?"s dépassaient":" dépassait")+" "+CAP+" combinaisons possibles ; pour ceux-là, un tirage aléatoire de "+N+" versions a été fait à la place de l'énumération complète.",true);
   if(expanded) f+=flag("<b>"+expanded+"</b> individu"+(expanded>1?"s ont été développés":" a été développé")+" en plusieurs versions à 2 allèles (voir la légende ci-dessous). Les autres sont inchangés.",false);
@@ -347,7 +348,8 @@ function lireTexte(f,cb){var rd=new FileReader();rd.onload=function(){var t=Stri
   if(t.indexOf("�")<0) return cb(t.replace(/^﻿/,""));
   var r2=new FileReader();r2.onload=function(){cb(String(r2.result));};r2.readAsText(f,"windows-1252");};rd.readAsText(f);}
 function estClasseur(f){return /\.(xlsx|xlsm|xls|ods)$/i.test(f.name);}
-// Une feuille en texte délimité par des tabulations. Identifiant (1re colonne) : tel qu'Excel l'affiche.
+// Une feuille en texte délimité par des tabulations. Identifiant (1re colonne) : tel qu'Excel l'affiche ; s'il est
+// en format de date, il est rétabli sous la forme AAAAMMJJ (ex. 6/1/15 → 20150601).
 // Autres colonnes : valeur brute ; un nombre de 5 ou 8 chiffres a perdu un zéro initial (097167 → 97167).
 function feuilleEnTexte(ws){
   var out=[],dates=0,zeros=0;if(!ws["!ref"])return {txt:"",dates:0,zeros:0};
@@ -355,7 +357,10 @@ function feuilleEnTexte(ws){
   for(var r=R.s.r;r<=R.e.r;r++){var row=[];
     for(var c=R.s.c;c<=R.e.c;c++){var cell=ws[XLSX.utils.encode_cell({r:r,c:c})],v="";
       if(cell&&cell.v!=null){
-        if(c===R.s.c){v=cell.w!=null?String(cell.w):String(cell.v);if(cell.t==="d"||(cell.t==="n"&&cell.z&&XLSX.SSF.is_date(cell.z)))dates++;}
+        if(c===R.s.c){v=cell.w!=null?String(cell.w):String(cell.v);var dt=null;
+          if(cell.t==="d"&&cell.v instanceof Date)dt={y:cell.v.getFullYear(),m:cell.v.getMonth()+1,d:cell.v.getDate()};
+          else if(cell.t==="n"&&cell.z&&XLSX.SSF.is_date(cell.z))dt=XLSX.SSF.parse_date_code(cell.v);
+          if(dt){v=String(dt.y)+(dt.m<10?"0":"")+dt.m+(dt.d<10?"0":"")+dt.d;dates++;}}   // date d'Excel → AAAAMMJJ
         else if(cell.t==="n"){v=String(Math.round(cell.v));if(v.length===5||v.length===8){v="0"+v;zeros++;}else if(v==="0")v="000000";}
         else v=String(cell.w!=null?cell.w:cell.v);}
       row.push(v.replace(/[\t\r\n]+/g," ").trim());}
