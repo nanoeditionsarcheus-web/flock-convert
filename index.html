@@ -106,9 +106,10 @@ footer{color:var(--muted);font-size:12.5px;margin-top:28px;border-top:1px solid 
   <div id="flags"></div>
 
   <h2 style="margin-top:20px">Matrice FLOCK</h2>
-  <p class="note" style="margin-top:0">Copier-coller cette matrice dans le classeur FLOCK, ou l'enregistrer en CSV. Les allèles sont séparés, les manquants à <code>0</code>.</p>
+  <p class="note" style="margin-top:0">Copier-coller cette matrice dans le classeur FLOCK, ou l'enregistrer : en Excel (.xls), le format que FLOCK sait ouvrir, ou en CSV. Les pages de calcul du guichet acceptent les deux. Les allèles sont séparés, les manquants à <code>0</code>.</p>
   <div class="row" style="margin-top:8px;margin-bottom:8px">
     <button class="ghost" type="button" id="copy">Copier</button>
+    <button class="ghost" type="button" id="xls">Enregistrer en Excel (.xls)</button>
     <button class="ghost" type="button" id="csv">Enregistrer en CSV</button>
     <span class="note" id="copied" style="margin:0"></span>
   </div>
@@ -393,6 +394,17 @@ $("copy").addEventListener("click",function(){
   try{ document.execCommand("copy"); $("copied").textContent="Copié — collez dans FLOCK (Ctrl+V)."; }
   catch(e){ if(navigator.clipboard) navigator.clipboard.writeText($("out").value).then(function(){$("copied").textContent="Copié.";}); }
   setTimeout(function(){$("copied").textContent="";},4000);
+});
+// Classeur Excel 97-2003 (.xls), que FLOCK sait ouvrir (demande de P. Duchesne, 15 octobre 2026) :
+// identifiant en texte (Excel ne le transforme pas en date), allèles en nombres, en-tête inchangé.
+$("xls").addEventListener("click",function(){
+  if(typeof XLSX==="undefined"){alert("L'enregistrement en Excel n'est pas disponible hors ligne. Utilisez « Copier » ou « Enregistrer en CSV ».");return;}
+  var L=$("out").value.split("\n").filter(function(l){return l.length;}).map(function(l){return l.split("\t");});
+  var aoa=L.map(function(r,i){return i===0?r:r.map(function(c,k){return k===0||c===""||isNaN(+c)?c:+c;});});
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  for(var i=1;i<aoa.length;i++){ws[XLSX.utils.encode_cell({r:i,c:0})]={t:"s",v:String(aoa[i][0])};}
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"FLOCK");
+  XLSX.writeFile(wb,"matrice_flock.xls",{bookType:"biff8"});
 });
 $("csv").addEventListener("click",function(){
   var csv=$("out").value.split("\n").map(function(l){return l.split("\t").map(function(c){return /[",;]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(";");}).join("\r\n");

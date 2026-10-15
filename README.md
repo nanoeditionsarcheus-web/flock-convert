@@ -10,7 +10,7 @@ Transforme une matrice de génotypes en disposition FLOCK — un allèle par col
 
 FLOCK attend les génotypes avec **un allèle par colonne** : `SPEC ID`, puis deux colonnes par locus. Or les matrices de travail ont souvent les allèles **collés** (`147167` dans une seule case). Passer de l'un à l'autre à la main — convertir en texte, insérer une colonne par locus, découper au milieu, ajouter les en-têtes — est long et propice aux erreurs de décalage.
 
-Cet outil le fait d'un seul clic. On colle la matrice, on récupère la disposition FLOCK : allèles séparés, données manquantes à `0`, vrais noms de locus en en-tête. Le résultat se copie directement dans le classeur FLOCK ou s'enregistre en CSV.
+Cet outil le fait d'un seul clic. On colle la matrice, on récupère la disposition FLOCK : allèles séparés, données manquantes à `0`, vrais noms de locus en en-tête. Le résultat se copie directement dans le classeur FLOCK, ou s'enregistre en Excel (.xls, le format que FLOCK sait ouvrir) ou en CSV.
 
 ## Les locus à plus de deux allèles
 
